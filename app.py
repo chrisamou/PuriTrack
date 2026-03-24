@@ -8,7 +8,7 @@ from datetime import datetime
 st.set_page_config(page_title="PuriTrack Dashboard", layout="wide", page_icon="🧪")
 st.title("🧪 PuriTrack: Purification Operations")
 
-# 2. Database Initialization (Added Mass, Injections, and pH)
+# 2. Database Initialization
 DB_FILE = "puritrack_db.csv"
 
 def load_data():
@@ -51,13 +51,20 @@ with tab2:
             else:
                 instrument = st.selectbox("Select Instrument", [f"Büchi-Flash-{i}" for i in range(1, 9)])
                 column_id = "Disposable (Plastic)"
-                st.info("Flash systems automatically default to Disposable columns.")
                 
         with col2:
-            # ⚡ NEW: The three requested inputs
-            sample_mass = st.number_input("Sample Mass (mg)", min_value=0.0, step=50.0, value=100.0)
-            injections = st.number_input("Number of Injections", min_value=1, step=1, value=1)
-            ph_value = st.number_input("Method pH", min_value=0.0, max_value=14.0, step=0.1, value=7.0)
+            # ⚡ THE FIX: Conditional UI Logic
+            if instrument_type == "Prep-HPLC (Teledyne)":
+                sample_mass = st.number_input("Sample Mass (mg)", min_value=0.0, step=50.0, value=100.0)
+                injections = st.number_input("Number of Injections", min_value=1, step=1, value=1)
+                ph_value = st.selectbox("Method pH", ["Low", "High"])
+            else:
+                # Background variables so the database saves cleanly without crashing
+                sample_mass = 0.0
+                injections = 1
+                ph_value = "N/A"
+                st.write("") # Spacer
+                st.info("⚡ **Flash System Selected:** Column, Mass, Injections, and pH tracking are bypassed for disposable runs.")
             
             st.write("") # Spacer
             success = st.checkbox("✅ Run Successful? (Target peak isolated)", value=True)
@@ -111,18 +118,17 @@ with tab1:
         if filtered_df.empty:
             st.warning("No data matches the current filters.")
         else:
-            # ⚡ UPGRADED KPIs
+            # Top Level KPIs
             col1, col2, col3, col4 = st.columns(4)
             total_runs = len(filtered_df)
             success_rate = (filtered_df["Success"].sum() / total_runs) * 100 if total_runs > 0 else 0
             
-            # Convert total mg to grams for the dashboard
             total_mass_g = filtered_df["Sample_Mass_mg"].sum() / 1000 
             total_injections = filtered_df["Injections"].sum()
 
             col1.metric("Total Purifications", f"{total_runs}")
             col2.metric("Overall Success Rate", f"{success_rate:.1f}%")
-            col3.metric("Total Mass Processed", f"{total_mass_g:.2f} g")
+            col3.metric("Prep-HPLC Mass Processed", f"{total_mass_g:.2f} g")
             col4.metric("Total Injections", f"{total_injections}")
 
             st.divider()
@@ -144,21 +150,17 @@ with tab1:
                 fig_trend.update_yaxes(dtick=1)
                 st.plotly_chart(fig_trend, use_container_width=True)
 
-            # ⚡ UPGRADED: Column Health Alerts (Now sums actual injections)
+            # Column Health Alerts
             st.subheader("🚨 Teledyne Reusable Column Health")
             reusable_df = filtered_df[filtered_df["Column_ID"] != "Disposable (Plastic)"]
 
             if not reusable_df.empty:
                 column_health = reusable_df.groupby("Column_ID").agg(
-                    Total_Injections=("Injections", "sum"), # Sums the exact number of injections logged
-                    Avg_pH=("pH", "mean") # Shows the average pH run through the column
+                    Total_Injections=("Injections", "sum")
                 ).reset_index()
 
                 column_health["Status"] = column_health["Total_Injections"].apply(lambda x: "🔴 REPLACE SOON" if x > 50 else "🟢 HEALTHY")
                 
-                # Format Avg_pH to 1 decimal place
-                column_health["Avg_pH"] = column_health["Avg_pH"].round(1)
-
                 st.dataframe(
                     column_health.style.applymap(lambda x: "background-color: #fca5a5" if "REPLACE" in str(x) else "background-color: #bbf7d0", subset=["Status"]),
                     use_container_width=True
