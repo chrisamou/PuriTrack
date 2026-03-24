@@ -34,8 +34,12 @@ tab1, tab2 = st.tabs(["📊 Analytics & Reports", "📝 Daily Data Entry"])
 # ==========================================
 with tab2:
     st.subheader("Log a New Purification Run")
-    st.markdown("Enter the run details below. Keep it quick and accurate.")
     
+    # ⚡ THE FIX: Move Instrument Type OUTSIDE the form so it triggers an instant UI update!
+    st.markdown("**Step 1: Select System Type**")
+    instrument_type = st.radio("Which system did you use?", ["Prep-HPLC (Teledyne)", "Flash (Büchi)"], horizontal=True)
+    
+    st.markdown("**Step 2: Enter Run Details**")
     with st.form("data_entry_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         
@@ -43,28 +47,26 @@ with tab2:
             run_date = st.date_input("Run Date", datetime.today())
             run_id = st.text_input("Run ID / Compound Name (e.g., CHEM-1042)")
             
-            instrument_type = st.selectbox("Instrument Type", ["Prep-HPLC (Teledyne)", "Flash (Büchi)"])
-            
             if instrument_type == "Prep-HPLC (Teledyne)":
                 instrument = st.selectbox("Select Instrument", [f"Teledyne-Prep-{i}" for i in range(1, 4)])
                 column_id = st.selectbox("Select Column", ["C18-Prep-A", "C18-Prep-B", "C8-Prep-A", "Chiral-OD"])
             else:
                 instrument = st.selectbox("Select Instrument", [f"Büchi-Flash-{i}" for i in range(1, 9)])
                 column_id = "Disposable (Plastic)"
+                st.info("Flash systems default to Disposable columns.")
                 
         with col2:
-            # ⚡ THE FIX: Conditional UI Logic
             if instrument_type == "Prep-HPLC (Teledyne)":
                 sample_mass = st.number_input("Sample Mass (mg)", min_value=0.0, step=50.0, value=100.0)
                 injections = st.number_input("Number of Injections", min_value=1, step=1, value=1)
                 ph_value = st.selectbox("Method pH", ["Low", "High"])
             else:
-                # Background variables so the database saves cleanly without crashing
                 sample_mass = 0.0
                 injections = 1
                 ph_value = "N/A"
                 st.write("") # Spacer
-                st.info("⚡ **Flash System Selected:** Column, Mass, Injections, and pH tracking are bypassed for disposable runs.")
+                st.write("") # Spacer
+                st.success("⚡ **Flash Mode Active:** Advanced tracking inputs are hidden.")
             
             st.write("") # Spacer
             success = st.checkbox("✅ Run Successful? (Target peak isolated)", value=True)
